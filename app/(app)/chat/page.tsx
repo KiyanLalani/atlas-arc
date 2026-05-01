@@ -12,15 +12,11 @@ interface Message {
 
 const ACCENT = 'var(--orange)'
 
-const INITIAL_MESSAGES: Message[] = [
-  { role: 'ai', text: "Hi! I'm Atlas, your AI assistant. I've reviewed your schedule and emails — what can I help you with today?" },
-  { role: 'user', text: 'Summarise my emails from this morning' },
-  { role: 'ai', text: "You received 7 emails this morning:\n\n• Sarah sent the Q2 proposal — marked high priority\n• 3 newsletters (unread)\n• Meeting confirmation for Thursday at 2pm\n• Invoice from Webflow ($49)\n• A reply from Marcus about the project timeline" },
-]
+const GREETING: Message = { role: 'ai', text: "Hi! I'm Atlas, your AI assistant. What can I help you with today?" }
 
 export default function ChatPage() {
   const { data: session } = useSession()
-  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES)
+  const [messages, setMessages] = useState<Message[]>([GREETING])
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)

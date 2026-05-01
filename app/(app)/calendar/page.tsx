@@ -2,6 +2,7 @@
 
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import LGCard from '@/components/LGCard'
 import Icon from '@/components/Icon'
 
@@ -10,83 +11,88 @@ interface CalEvent {
   title: string
   startTime: string
   endTime: string
-  tag: string
-  color: string
+  start: string
 }
 
 const ACCENT = 'var(--orange)'
-
-const MOCK_EVENTS: Record<number, CalEvent[]> = {
-  30: [
-    { id: '1', title: 'Team Standup',  startTime: '10:00', endTime: '10:45', tag: 'Work',     color: 'var(--sage)' },
-    { id: '2', title: 'Lunch — James', startTime: '12:30', endTime: '14:00', tag: 'Personal', color: ACCENT },
-    { id: '3', title: 'Design Review', startTime: '15:00', endTime: '16:30', tag: 'Work',     color: 'var(--sage)' },
-  ],
-}
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
 export default function CalendarPage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const today = new Date()
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
   const [currentYear, setCurrentYear] = useState(today.getFullYear())
   const [selectedDay, setSelectedDay] = useState(today.getDate())
-  const [googleEvents, setGoogleEvents] = useState<CalEvent[]>([])
-  const [loadingEvents, setLoadingEvents] = useState(false)
+  const [eventsByDay, setEventsByDay] = useState<Record<number, CalEvent[]>>({})
+  const [loading, setLoading] = useState(false)
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
   const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay()
 
-  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December']
-
   useEffect(() => {
     if (!session?.accessToken) return
-    setLoadingEvents(true)
-    fetch('/api/calendar')
+    setLoading(true)
+    setEventsByDay({})
+    fetch(`/api/calendar/month?year=${currentYear}&month=${currentMonth}`)
       .then((r) => r.json())
       .then((d) => {
-        const events: CalEvent[] = (d.events || []).map((e: any, i: number) => ({
-          id: e.id || String(i),
-          title: e.title,
-          startTime: e.startTime,
-          endTime: e.endTime,
-          tag: 'Work',
-          color: i % 2 === 0 ? 'var(--sage)' : ACCENT,
-        }))
-        setGoogleEvents(events)
-        setLoadingEvents(false)
+        const grouped: Record<number, CalEvent[]> = {}
+        for (const e of (d.events ?? [])) {
+          const date = new Date(e.start)
+          if (isNaN(date.getTime())) continue
+          const day = date.getDate()
+          if (!grouped[day]) grouped[day] = []
+          grouped[day].push(e)
+        }
+        setEventsByDay(grouped)
+        setLoading(false)
       })
-      .catch(() => setLoadingEvents(false))
-  }, [session?.accessToken])
-
-  const eventsForDay = (day: number): CalEvent[] => {
-    if (session?.accessToken && googleEvents.length > 0) {
-      if (day === today.getDate() && currentMonth === today.getMonth()) return googleEvents
-      return []
-    }
-    return MOCK_EVENTS[day] || (day % 7 === 3 ? [{ id: '0', title: 'Quick Sync', startTime: '11:00', endTime: '11:30', tag: 'Work', color: 'var(--sage)' }] : [])
-  }
-
-  const hasEvents = (day: number) => eventsForDay(day).length > 0
+      .catch(() => setLoading(false))
+  }, [session?.accessToken, currentMonth, currentYear])
 
   const prevMonth = () => {
     if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(y => y - 1) }
     else setCurrentMonth(m => m - 1)
+    setSelectedDay(1)
   }
   const nextMonth = () => {
     if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(y => y + 1) }
     else setCurrentMonth(m => m + 1)
+    setSelectedDay(1)
   }
 
+  const eventsForDay = (day: number) => eventsByDay[day] ?? []
+  const hasEvents = (day: number) => eventsForDay(day).length > 0
   const displayEvents = eventsForDay(selectedDay)
 
+  const eventColor = (i: number) => i % 2 === 0 ? 'var(--sage)' : ACCENT
+
+  if (!session?.accessToken) {
+    return (
+      <div className="screen-in" style={{ display: 'flex', flexDirection: 'column', flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 16, textAlign: 'center' }}>
+        <div style={{ width: 64, height: 64, borderRadius: 20, background: 'var(--sage-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="calendar" size={28} color="var(--sage)" />
+        </div>
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Your calendar, at a glance</div>
+          <div style={{ fontSize: 13.5, color: 'var(--text-mid)', lineHeight: 1.6 }}>Atlas reads your Google Calendar and shows your events. Connect your account to get started.</div>
+        </div>
+        <button onClick={() => router.push('/settings')} className="tappable" style={{ padding: '12px 28px', borderRadius: 'var(--r-full)', background: ACCENT, border: 'none', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+          Connect Google
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <div className="screen-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-      <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="screen-in" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12, flex: 1, overflowY: 'auto' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 24, fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.02em' }}>
-            {monthNames[currentMonth]} {currentYear}
+            {MONTH_NAMES[currentMonth]} {currentYear}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {(['chevL', 'chevR'] as const).map((ic, idx) => (
@@ -137,12 +143,12 @@ export default function CalendarPage() {
           </div>
         </LGCard>
 
-        {/* Selected day events */}
+        {/* Selected day heading */}
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-mid)' }}>
-          {monthNames[currentMonth]} {selectedDay}
+          {MONTH_NAMES[currentMonth]} {selectedDay}
         </div>
 
-        {loadingEvents ? (
+        {loading ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-soft)', fontSize: 13, padding: '8px 0' }}>
             <Icon name="loader" size={14} color="var(--text-soft)" /> Loading events…
           </div>
@@ -150,12 +156,12 @@ export default function CalendarPage() {
           <p style={{ fontSize: 13, color: 'var(--text-soft)', padding: '8px 0' }}>No events on this day.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {displayEvents.map((e) => (
+            {displayEvents.map((e, i) => (
               <LGCard key={e.id} style={{ padding: '14px 16px', display: 'flex', gap: 12, alignItems: 'center' }}>
-                <div style={{ width: 3, height: 44, borderRadius: 4, background: e.color, flexShrink: 0 }} />
+                <div style={{ width: 3, height: 44, borderRadius: 4, background: eventColor(i), flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{e.title}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-soft)', marginTop: 2 }}>{e.startTime}–{e.endTime} · {e.tag}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-soft)', marginTop: 2 }}>{e.startTime}{e.endTime ? `–${e.endTime}` : ''}</div>
                 </div>
               </LGCard>
             ))}

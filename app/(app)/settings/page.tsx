@@ -1,7 +1,7 @@
 'use client'
 
 import { signIn, signOut, useSession } from 'next-auth/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import LGCard from '@/components/LGCard'
 import Icon from '@/components/Icon'
@@ -32,18 +32,37 @@ function Toggle({ val, onChange }: { val: boolean; onChange: (v: boolean) => voi
   )
 }
 
+function loadToggle(key: string, def: boolean): boolean {
+  try { const v = localStorage.getItem(key); return v === null ? def : v === 'true' } catch { return def }
+}
+
 export default function SettingsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [calSync, setCalSync] = useState(true)
-  const [gmailSync, setGmailSync] = useState(true)
-  const [onDevice, setOnDevice] = useState(true)
-  const [shareContext, setShareContext] = useState(true)
+  const [calSync, setCalSyncRaw] = useState(true)
+  const [gmailSync, setGmailSyncRaw] = useState(true)
+  const [onDevice, setOnDeviceRaw] = useState(true)
+  const [shareContext, setShareContextRaw] = useState(true)
   const [signingIn, setSigningIn] = useState(false)
 
+  useEffect(() => {
+    setCalSyncRaw(loadToggle('atlas-toggle-calSync', true))
+    setGmailSyncRaw(loadToggle('atlas-toggle-gmailSync', true))
+    setOnDeviceRaw(loadToggle('atlas-toggle-onDevice', true))
+    setShareContextRaw(loadToggle('atlas-toggle-shareContext', true))
+  }, [])
+
+  const persist = (key: string, val: boolean) => {
+    try { localStorage.setItem(key, String(val)) } catch {}
+  }
+  const setCalSync = (v: boolean) => { setCalSyncRaw(v); persist('atlas-toggle-calSync', v) }
+  const setGmailSync = (v: boolean) => { setGmailSyncRaw(v); persist('atlas-toggle-gmailSync', v) }
+  const setOnDevice = (v: boolean) => { setOnDeviceRaw(v); persist('atlas-toggle-onDevice', v) }
+  const setShareContext = (v: boolean) => { setShareContextRaw(v); persist('atlas-toggle-shareContext', v) }
+
   const isConnected = !!session?.accessToken
-  const name = session?.user?.name?.split(' ')[0] || 'Kiyan'
-  const email = session?.user?.email || 'kiyan@example.com'
+  const name = session?.user?.name?.split(' ')[0] || 'You'
+  const email = session?.user?.email || ''
 
   const handleConnect = async () => {
     setSigningIn(true)
@@ -78,7 +97,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>{name}</div>
-              <div style={{ fontSize: 13, color: 'var(--text-soft)' }}>{email}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-soft)' }}>{email || 'Not signed in'}</div>
             </div>
           </div>
         </LGCard>

@@ -1,69 +1,107 @@
 'use client'
 
+import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import LGCard from '@/components/LGCard'
 import Icon from '@/components/Icon'
 
 interface Reminder {
-  id: number
+  id: string
   text: string
   done: boolean
-  time: string
-  tag: 'Work' | 'Health' | 'Personal' | 'Finance'
 }
 
 const ACCENT = 'var(--orange)'
-const TAG_COLORS: Record<string, string> = {
-  Work: 'var(--sage)',
-  Health: ACCENT,
-  Personal: 'var(--slate)',
-  Finance: 'var(--slate)',
-}
-
-const INITIAL: Reminder[] = [
-  { id: 1, text: "Review Sarah's Q2 proposal", done: false, time: '11:00am', tag: 'Work' },
-  { id: 2, text: 'Book gym session',           done: false, time: '5:00pm',  tag: 'Health' },
-  { id: 3, text: 'Call mum',                   done: true,  time: 'Done',    tag: 'Personal' },
-  { id: 4, text: 'Pay Webflow invoice',        done: false, time: 'Today',   tag: 'Finance' },
-  { id: 5, text: 'Finish design system draft', done: false, time: 'Tomorrow',tag: 'Work' },
-]
 
 export default function RemindersPage() {
+  const { data: session } = useSession()
+  const router = useRouter()
   const [todos, setTodos] = useState<Reminder[]>([])
   const [newText, setNewText] = useState('')
-  const [nextId, setNextId] = useState(100)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
 
+  const isConnected = !!session?.accessToken
+
+  // Load reminders
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('atlas-reminders')
-      setTodos(saved ? JSON.parse(saved) : INITIAL)
-    } catch {
-      setTodos(INITIAL)
+    if (isConnected) {
+      setLoading(true)
+      fetch('/api/tasks')
+        .then((r) => r.json())
+        .then((d) => { setTodos(d.tasks ?? []); setLoading(false) })
+        .catch(() => setLoading(false))
+    } else {
+      try {
+        const saved = localStorage.getItem('atlas-reminders-v2')
+        setTodos(saved ? JSON.parse(saved) : [])
+      } catch {
+        setTodos([])
+      }
     }
-  }, [])
+  }, [isConnected])
 
-  const save = (updated: Reminder[]) => {
-    setTodos(updated)
-    try { localStorage.setItem('atlas-reminders', JSON.stringify(updated)) } catch {}
+  const saveLocal = (updated: Reminder[]) => {
+    try { localStorage.setItem('atlas-reminders-v2', JSON.stringify(updated)) } catch {}
   }
 
-  const toggle = (id: number) => save(todos.map((r) => r.id === id ? { ...r, done: !r.done } : r))
-  const del    = (id: number) => save(todos.filter((r) => r.id !== id))
-  const add    = () => {
-    if (!newText.trim()) return
-    const reminder: Reminder = { id: nextId, text: newText.trim(), done: false, time: 'Today', tag: 'Personal' }
-    save([...todos, reminder])
-    setNextId((n) => n + 1)
+  const add = async () => {
+    const text = newText.trim()
+    if (!text || saving) return
     setNewText('')
+    setSaving(true)
+    if (isConnected) {
+      try {
+        const res = await fetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: text }) })
+        const d = await res.json()
+        setTodos((prev) => [...prev, d.task])
+      } catch {}
+    } else {
+      const reminder: Reminder = { id: `local-${Date.now()}`, text, done: false }
+      setTodos((prev) => {
+        const updated = [...prev, reminder]
+        saveLocal(updated)
+        return updated
+      })
+    }
+    setSaving(false)
+  }
+
+  const toggle = async (id: string, done: boolean) => {
+    setTodos((prev) => prev.map((r) => r.id === id ? { ...r, done: !done } : r))
+    if (isConnected) {
+      try {
+        await fetch('/api/tasks', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, done: !done }) })
+      } catch {}
+    } else {
+      setTodos((prev) => {
+        saveLocal(prev)
+        return prev
+      })
+    }
+  }
+
+  const del = async (id: string) => {
+    setTodos((prev) => {
+      const updated = prev.filter((r) => r.id !== id)
+      if (!isConnected) saveLocal(updated)
+      return updated
+    })
+    if (isConnected) {
+      try {
+        await fetch(`/api/tasks?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      } catch {}
+    }
   }
 
   const pending = todos.filter((t) => !t.done)
-  const done    = todos.filter((t) => t.done)
+  const done = todos.filter((t) => t.done)
 
   const ReminderItem = ({ r }: { r: Reminder }) => (
     <LGCard style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, opacity: r.done ? 0.6 : 1, transition: 'opacity 0.2s' }}>
       <button
-        onClick={() => toggle(r.id)}
+        onClick={() => toggle(r.id, r.done)}
         className="tappable"
         style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0, border: `2px solid ${r.done ? ACCENT : 'rgba(0,0,0,0.15)'}`, background: r.done ? ACCENT : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
       >
@@ -71,11 +109,6 @@ export default function RemindersPage() {
       </button>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13.5, color: 'var(--text)', textDecoration: r.done ? 'line-through' : 'none' }}>{r.text}</div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 3, alignItems: 'center' }}>
-          <span style={{ fontSize: 11, color: 'var(--text-soft)' }}>{r.time}</span>
-          <div style={{ width: 4, height: 4, borderRadius: '50%', background: TAG_COLORS[r.tag] }} />
-          <span style={{ fontSize: 11, color: TAG_COLORS[r.tag], fontWeight: 500 }}>{r.tag}</span>
-        </div>
       </div>
       <button onClick={() => del(r.id)} className="tappable" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
         <Icon name="trash" size={15} color="var(--text-soft)" />
@@ -87,24 +120,52 @@ export default function RemindersPage() {
     <div className="screen-in" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div className="lg" style={{ padding: '12px 18px', borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <div style={{ fontSize: 22, fontWeight: 600, color: 'var(--text)' }}>Reminders</div>
-        <div style={{ fontSize: 12, color: 'var(--text-soft)' }}>{pending.length} pending</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {isConnected && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--sage)' }} />
+              <span style={{ fontSize: 11, color: 'var(--sage)', fontWeight: 500 }}>Synced</span>
+            </div>
+          )}
+          <div style={{ fontSize: 12, color: 'var(--text-soft)' }}>{pending.length} pending</div>
+        </div>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {pending.length > 0 && (
-          <>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Pending</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {pending.map((r) => <ReminderItem key={r.id} r={r} />)}
-            </div>
-          </>
+        {!isConnected && (
+          <LGCard style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <Icon name="bell" size={15} color={ACCENT} />
+            <span style={{ flex: 1, fontSize: 12, color: 'var(--text-mid)', lineHeight: 1.45 }}>
+              <button onClick={() => router.push('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: ACCENT, fontSize: 12, fontWeight: 500, padding: 0 }}>Connect Google</button>{' '}to sync reminders across all your devices.
+            </span>
+          </LGCard>
         )}
-        {done.length > 0 && (
+
+        {loading ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-soft)', fontSize: 13, padding: '8px 0' }}>
+            <Icon name="loader" size={14} color="var(--text-soft)" /> Loading…
+          </div>
+        ) : (
           <>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '8px 0 4px' }}>Done</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {done.map((r) => <ReminderItem key={r.id} r={r} />)}
-            </div>
+            {pending.length > 0 && (
+              <>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Pending</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {pending.map((r) => <ReminderItem key={r.id} r={r} />)}
+                </div>
+              </>
+            )}
+            {done.length > 0 && (
+              <>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '8px 0 4px' }}>Done</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {done.map((r) => <ReminderItem key={r.id} r={r} />)}
+                </div>
+              </>
+            )}
+            {todos.length === 0 && (
+              <p style={{ fontSize: 13, color: 'var(--text-soft)', textAlign: 'center', padding: '32px 0' }}>No reminders yet. Add one below.</p>
+            )}
           </>
         )}
       </div>
@@ -115,9 +176,10 @@ export default function RemindersPage() {
           onChange={(e) => setNewText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && add()}
           placeholder="Add a reminder…"
+          disabled={saving}
           style={{ flex: 1, padding: '11px 16px', borderRadius: 'var(--r-full)', background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.9)', fontSize: 14, color: 'var(--text)', outline: 'none', fontFamily: 'var(--font)', transition: 'box-shadow 0.2s' }}
         />
-        <button onClick={add} className="tappable" style={{ width: 44, height: 44, borderRadius: '50%', background: ACCENT, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button onClick={add} disabled={saving || !newText.trim()} className="tappable" style={{ width: 44, height: 44, borderRadius: '50%', background: saving || !newText.trim() ? 'rgba(0,0,0,0.12)' : ACCENT, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s' }}>
           <Icon name="plus" size={19} color="white" sw={2.2} />
         </button>
       </div>

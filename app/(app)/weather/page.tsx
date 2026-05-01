@@ -12,46 +12,43 @@ interface WeatherData {
   condition: string
   humidity: number
   wind: number
-  uvIndex: number
   hourly: Array<{ t: string; temp: number; icon: 'sun' | 'cloud' | 'drop' }>
   weekly: Array<{ day: string; hi: number; lo: number; icon: 'sun' | 'cloud' | 'drop'; summary: string }>
   atlasSuggestion: string
 }
 
-const MOCK: WeatherData = {
-  city: 'London, United Kingdom',
-  temp: 18,
-  condition: 'Partly Cloudy',
-  humidity: 62,
-  wind: 12,
-  uvIndex: 4,
-  hourly: [
-    { t: 'Now', temp: 18, icon: 'sun' },
-    { t: '1pm', temp: 20, icon: 'sun' },
-    { t: '2pm', temp: 21, icon: 'sun' },
-    { t: '3pm', temp: 20, icon: 'cloud' },
-    { t: '4pm', temp: 19, icon: 'cloud' },
-    { t: '5pm', temp: 17, icon: 'cloud' },
-  ],
-  weekly: [
-    { day: 'Today', hi: 21, lo: 13, icon: 'sun',   summary: 'Sunny' },
-    { day: 'Thu',   hi: 19, lo: 11, icon: 'cloud', summary: 'Cloudy' },
-    { day: 'Fri',   hi: 16, lo: 10, icon: 'drop',  summary: 'Rainy' },
-    { day: 'Sat',   hi: 18, lo: 12, icon: 'cloud', summary: 'Overcast' },
-    { day: 'Sun',   hi: 23, lo: 14, icon: 'sun',   summary: 'Sunny' },
-  ],
-  atlasSuggestion: 'Rain expected Friday — your outdoor meeting has been flagged. Consider rescheduling or moving it indoors.',
-}
-
 export default function WeatherPage() {
-  const [weather, setWeather] = useState<WeatherData>(MOCK)
+  const [weather, setWeather] = useState<WeatherData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
 
   useEffect(() => {
     fetch('/api/weather')
       .then((r) => r.json())
-      .then((d) => { if (d && !d.error) setWeather({ ...MOCK, ...d }) })
-      .catch(() => {})
+      .then((d) => {
+        if (d.error) { setError(true); return }
+        setWeather(d)
+        setLoading(false)
+      })
+      .catch(() => { setError(true); setLoading(false) })
   }, [])
+
+  if (loading) {
+    return (
+      <div className="screen-in" style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, color: 'var(--text-soft)', fontSize: 14 }}>
+        <Icon name="loader" size={16} color="var(--text-soft)" /> Loading weather…
+      </div>
+    )
+  }
+
+  if (error || !weather) {
+    return (
+      <div className="screen-in" style={{ display: 'flex', flex: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24, textAlign: 'center' }}>
+        <Icon name="cloud" size={40} color="var(--text-soft)" />
+        <p style={{ fontSize: 14, color: 'var(--text-mid)' }}>Weather unavailable. Add <strong>OPENWEATHER_API_KEY</strong> in Vercel to enable live weather.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="screen-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
@@ -66,7 +63,6 @@ export default function WeatherPage() {
             {[
               { icon: 'drop'  as const, label: `${weather.humidity}% humidity` },
               { icon: 'wind'  as const, label: `${weather.wind} km/h` },
-              { icon: 'sun'   as const, label: `UV index ${weather.uvIndex}` },
             ].map((s, i) => (
               <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
                 <Icon name={s.icon} size={17} color="var(--text-mid)" />
@@ -77,38 +73,38 @@ export default function WeatherPage() {
         </LGCard>
 
         {/* Hourly */}
-        <LGCard style={{ padding: '14px 16px' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>Hourly</div>
-          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
-            {weather.hourly.map((h, i) => (
-              <div
-                key={i}
-                className="lg"
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0, padding: '8px 12px', borderRadius: 16, border: i === 0 ? `1.5px solid oklch(63% 0.14 47 / 0.27)` : undefined, background: i === 0 ? 'oklch(63% 0.14 47 / 0.07)' : undefined }}
-              >
-                <span style={{ fontSize: 10, color: i === 0 ? ACCENT : 'var(--text-soft)', fontWeight: i === 0 ? 600 : 400 }}>{h.t}</span>
-                <Icon name={h.icon} size={18} color={i === 0 ? ACCENT : 'var(--text-mid)'} />
-                <span style={{ fontSize: 13, fontWeight: 500, color: i === 0 ? ACCENT : 'var(--text)' }}>{h.temp}°</span>
-              </div>
-            ))}
-          </div>
-        </LGCard>
+        {weather.hourly.length > 0 && (
+          <LGCard style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>Hourly</div>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
+              {weather.hourly.map((h, i) => (
+                <div key={i} className="lg" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0, padding: '8px 12px', borderRadius: 16, border: i === 0 ? `1.5px solid oklch(63% 0.14 47 / 0.27)` : undefined, background: i === 0 ? 'oklch(63% 0.14 47 / 0.07)' : undefined }}>
+                  <span style={{ fontSize: 10, color: i === 0 ? ACCENT : 'var(--text-soft)', fontWeight: i === 0 ? 600 : 400 }}>{h.t}</span>
+                  <Icon name={h.icon} size={18} color={i === 0 ? ACCENT : 'var(--text-mid)'} />
+                  <span style={{ fontSize: 13, fontWeight: 500, color: i === 0 ? ACCENT : 'var(--text)' }}>{h.temp}°</span>
+                </div>
+              ))}
+            </div>
+          </LGCard>
+        )}
 
-        {/* 5-Day */}
-        <LGCard style={{ padding: '14px 18px' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>5-Day Forecast</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-            {weather.weekly.map((w, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 13, color: 'var(--text-mid)', width: 46, fontWeight: i === 0 ? 600 : 400 }}>{w.day}</span>
-                <Icon name={w.icon} size={17} color="var(--text-mid)" />
-                <span style={{ fontSize: 12, color: 'var(--text-soft)', flex: 1 }}>{w.summary}</span>
-                <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{w.hi}°</span>
-                <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>{w.lo}°</span>
-              </div>
-            ))}
-          </div>
-        </LGCard>
+        {/* 5-Day forecast */}
+        {weather.weekly.length > 0 && (
+          <LGCard style={{ padding: '14px 18px' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>5-Day Forecast</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+              {weather.weekly.map((w, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-mid)', width: 46, fontWeight: i === 0 ? 600 : 400 }}>{w.day}</span>
+                  <Icon name={w.icon} size={17} color="var(--text-mid)" />
+                  <span style={{ fontSize: 12, color: 'var(--text-soft)', flex: 1 }}>{w.summary}</span>
+                  <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{w.hi}°</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>{w.lo}°</span>
+                </div>
+              ))}
+            </div>
+          </LGCard>
+        )}
 
         {/* Atlas suggestion */}
         <LGCard style={{ padding: '14px 16px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>

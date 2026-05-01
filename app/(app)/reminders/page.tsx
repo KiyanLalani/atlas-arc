@@ -21,6 +21,7 @@ export default function RemindersPage() {
   const [newText, setNewText] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [addError, setAddError] = useState('')
 
   const isConnected = !!session?.accessToken
 
@@ -49,14 +50,21 @@ export default function RemindersPage() {
   const add = async () => {
     const text = newText.trim()
     if (!text || saving) return
-    setNewText('')
+    setAddError('')
     setSaving(true)
     if (isConnected) {
       try {
         const res = await fetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: text }) })
         const d = await res.json()
-        setTodos((prev) => [...prev, d.task])
-      } catch {}
+        if (!res.ok || !d.task) {
+          setAddError(d.error === 'needs-reconnect' ? 'Please disconnect and reconnect Google in Settings to enable reminders.' : 'Failed to save reminder. Try again.')
+        } else {
+          setTodos((prev) => [...prev, d.task])
+          setNewText('')
+        }
+      } catch {
+        setAddError('Could not connect. Check your internet and try again.')
+      }
     } else {
       const reminder: Reminder = { id: `local-${Date.now()}`, text, done: false }
       setTodos((prev) => {
@@ -64,6 +72,7 @@ export default function RemindersPage() {
         saveLocal(updated)
         return updated
       })
+      setNewText('')
     }
     setSaving(false)
   }
@@ -170,6 +179,11 @@ export default function RemindersPage() {
         )}
       </div>
 
+      {addError && (
+        <div style={{ padding: '8px 18px', fontSize: 12, color: '#c0392b', background: 'rgba(192,57,43,0.07)', borderTop: '1px solid rgba(192,57,43,0.1)', flexShrink: 0 }}>
+          {addError}
+        </div>
+      )}
       <div className="lg" style={{ padding: '10px 14px', borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderBottom: 'none', display: 'flex', gap: 10, flexShrink: 0 }}>
         <input
           value={newText}

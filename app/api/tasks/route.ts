@@ -18,9 +18,18 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.accessToken) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
-  const { title } = await req.json()
-  const task = await createTask(session.accessToken, title)
-  return NextResponse.json({ task })
+  try {
+    const { title } = await req.json()
+    const task = await createTask(session.accessToken, title)
+    return NextResponse.json({ task })
+  } catch (err: any) {
+    console.error('Tasks POST error:', err)
+    const isAuthErr = err?.code === 401 || err?.code === 403 || String(err).includes('insufficientPermissions')
+    return NextResponse.json(
+      { error: isAuthErr ? 'needs-reconnect' : 'Failed to create task' },
+      { status: isAuthErr ? 403 : 500 }
+    )
+  }
 }
 
 export async function PATCH(req: NextRequest) {

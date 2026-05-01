@@ -34,7 +34,8 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.accessToken) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
-  const { id } = await req.json()
+  const id = new URL(req.url).searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
   await removeTask(session.accessToken, id)
   return NextResponse.json({ ok: true })
 }

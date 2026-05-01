@@ -31,7 +31,7 @@ export default function RemindersPage() {
       setLoading(true)
       fetch('/api/tasks')
         .then((r) => r.json())
-        .then((d) => { setTodos(d.tasks ?? []); setLoading(false) })
+        .then((d) => { setTodos((d.tasks ?? []).map((t: any) => ({ id: t.id, text: t.title, done: t.done }))); setLoading(false) })
         .catch(() => setLoading(false))
     } else {
       try {
@@ -59,7 +59,7 @@ export default function RemindersPage() {
         if (!res.ok || !d.task) {
           setAddError(d.error === 'needs-reconnect' ? 'Please disconnect and reconnect Google in Settings to enable reminders.' : 'Failed to save reminder. Try again.')
         } else {
-          setTodos((prev) => [...prev, d.task])
+          setTodos((prev) => [...prev, { id: d.task.id, text: d.task.title, done: d.task.done }])
           setNewText('')
         }
       } catch {

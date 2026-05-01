@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Everything AI — Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: oklch(92% 0.015 55);
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh;
+  font-family: 'DM Sans', sans-serif;
+}
+.page-bg {
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 70% 60% at 20% 5%, oklch(86% 0.06 50 / 0.55) 0%, transparent 65%),
+    radial-gradient(ellipse 50% 40% at 85% 85%, oklch(86% 0.04 200 / 0.3) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 30% at 60% 40%, oklch(90% 0.03 280 / 0.2) 0%, transparent 60%),
+    oklch(93% 0.012 55);
+  z-index: 0;
+}
+.frame-wrap { position: relative; z-index: 1; }
+
+/* ── Liquid Glass (Apple style) ── */
+.lg {
+  background: linear-gradient(160deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.48) 100%);
+  border: 1px solid rgba(255,255,255,0.88);
+  backdrop-filter: blur(40px) saturate(180%) brightness(1.04);
+  -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.04);
+  box-shadow: 0 2px 24px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.lg-dark {
+  background: linear-gradient(160deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.14) 100%);
+  border: 1px solid rgba(255,255,255,0.32);
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  box-shadow: 0 2px 24px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.25);
+}
+
+/* ── Smooth transitions ── */
+.tappable {
+  transition: transform 0.18s cubic-bezier(0.34,1.56,0.64,1), opacity 0.18s ease;
+  cursor: pointer;
+}
+.tappable:active { transform: scale(0.96); opacity: 0.85; }
+
+/* ── Screen fade ── */
+.screen-in {
+  animation: fadeSlideIn 0.28s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Input focus ── */
+input:focus { box-shadow: 0 0 0 2px rgba(190,102,55,0.25) !important; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+<div class="page-bg"></div>
+<div class="frame-wrap">
+  <div id="root"></div>
+</div>
+
+<script type="text/babel">
+const { useState, useRef, useEffect } = React;
+
+// ── Tokens ──────────────────────────────────────────────────
+const T = {
+  bg:         'oklch(97% 0.008 55)',
+  bgDeep:     'oklch(93% 0.012 55)',
+  orange:     'oklch(63% 0.14 47)',
+  orangeLight:'oklch(95% 0.04 55)',
+  sage:       'oklch(60% 0.09 155)',
+  sageLight:  'oklch(93% 0.04 155)',
+  slate:      'oklch(54% 0.05 240)',
+  slateLight: 'oklch(93% 0.02 240)',
+  text:       'oklch(20% 0.01 55)',
+  textMid:    'oklch(46% 0.015 55)',
+  textSoft:   'oklch(65% 0.01 55)',
+  r:  '22px',
+  rSm:'14px',
+  rFull:'999px',
+  STATUS_H: 62, // px reserved for status bar + dynamic island
+  NAV_H: 82,
+};
+
+// ── Icon ────────────────────────────────────────────────────
+const Icon = ({ name, size=20, color=T.text, sw=1.6 }) => {
+  const s = { width:size, height:size, display:'block', flexShrink:0 };
+  const P = {
+    home:       <><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></>,
+    calendar:   <><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></>,
+    chat:       <><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></>,
+    mail:       <><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></>,
+    bell:       <><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>,
+    cloud:      <><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></>,
+    sun:        <><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></>,
+    sparkle:    <><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></>,
+    send:       <><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></>,
+    chevR:      <><polyline points="9 18 15 12 9 6"/></>,
+    chevL:      <><polyline points="15 18 9 12 15 6"/></>,
+    plus:       <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
+    check:      <><polyline points="20 6 9 17 4 12"/></>,
+    wind:       <><path d="M9.59 4.59A2 2 0 1111 8H2m10.59 11.41A2 2 0 1014 16H2m15.73-8.27A2.5 2.5 0 1119.5 12H2"/></>,
+    drop:       <><path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/></>,
+    trash:      <><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></>,
+    search:     <><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>,
+    user:       <><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></>,
+    settings:   <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></>,
+    google:     <><path d="M20.283 10.356h-8.327v3.451h4.792c-.446 2.193-2.313 3.453-4.792 3.453a5.27 5.27 0 01-5.279-5.28 5.27 5.27 0 015.279-5.279c1.259 0 2.397.447 3.29 1.178l2.6-2.599c-1.584-1.381-3.615-2.233-5.89-2.233a8.908 8.908 0 00-8.934 8.934 8.908 8.908 0 008.934 8.934c4.467 0 8.529-3.249 8.529-8.934 0-.528-.081-1.097-.202-1.625z"/></>,
+    link:       <><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></>,
+    shield:     <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></>,
+  };
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={s}>
+      {P[name]}
+    </svg>
+  );
+};
+
+// ── Liquid Glass Card ────────────────────────────────────────
+const LG = ({ children, style={}, className='', onClick }) => (
+  <div onClick={onClick} className={`lg tappable ${className}`} style={{ borderRadius: T.r, ...style }}>
+    {children}
+  </div>
+);
+
+// ── Bottom Nav ───────────────────────────────────────────────
+const NAV = [
+  { id:'home',      icon:'home',     label:'Home' },
+  { id:'calendar',  icon:'calendar', label:'Calendar' },
+  { id:'chat',      icon:'chat',     label:'Atlas' },
+  { id:'mail',      icon:'mail',     label:'Mail' },
+  { id:'reminders', icon:'bell',     label:'Remind' },
+];
+
+const BottomNav = ({ active, onNav, accent }) => (
+  <div className="lg" style={{
+    position:'absolute', bottom:0, left:0, right:0,
+    height: T.NAV_H,
+    borderRadius: '0 0 48px 48px',
+    borderTop: '1px solid rgba(255,255,255,0.9)',
+    display:'flex', alignItems:'center', justifyContent:'space-around',
+    paddingBottom:16, zIndex:100,
+  }}>
+    {NAV.map(n => {
+      const act = active === n.id;
+      return (
+        <button key={n.id} onClick={() => onNav(n.id)} className="tappable" style={{
+          display:'flex', flexDirection:'column', alignItems:'center', gap:3,
+          background:'none', border:'none', cursor:'pointer', padding:'4px 10px',
+        }}>
+          <div style={{
+            width:44, height:30, borderRadius:T.rSm,
+            background: act ? `${accent}22` : 'transparent',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            transition:'background 0.2s ease',
+          }}>
+            <Icon name={n.icon} size={19} color={act ? accent : T.textSoft} sw={act ? 2 : 1.6}/>
+          </div>
+          <span style={{ fontSize:10, color: act ? accent : T.textSoft, fontWeight: act ? 600 : 400, letterSpacing:'0.01em', transition:'color 0.2s' }}>
+            {n.label}
+          </span>
+        </button>
+      );
+    })}
+  </div>
+);
+
+// ── Screen wrapper — pads below status bar ───────────────────
+const Screen = ({ children, scrollable=true, style={} }) => (
+  <div className="screen-in" style={{
+    display:'flex', flexDirection:'column',
+    flex:1, minHeight:0,
+    paddingTop: T.STATUS_H,
+    ...(scrollable ? { overflowY:'auto' } : { overflow:'hidden' }),
+    ...style,
+  }}>
+    {children}
+  </div>
+);
+
+// ── HOME ─────────────────────────────────────────────────────
+const HomeScreen = ({ onNav, accent, name }) => (
+  <Screen>
+    <div style={{ padding:'8px 18px 100px', display:'flex', flexDirection:'column', gap:13 }}>
+
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+        <div>
+          <div style={{ fontSize:13, color:T.textSoft, fontWeight:400 }}>Good morning,</div>
+          <div style={{ fontSize:26, fontWeight:600, color:T.text, letterSpacing:'-0.02em' }}>{name}</div>
+        </div>
+        <button onClick={() => onNav('settings')} className="tappable" style={{
+          width:42, height:42, borderRadius:'50%',
+          background:`linear-gradient(135deg, ${accent}, oklch(68% 0.13 28))`,
+          border:'none', display:'flex', alignItems:'center', justifyContent:'center',
+        }}>
+          <span style={{ color:'white', fontSize:17, fontWeight:600 }}>
+            {name.charAt(0).toUpperCase()}
+          </span>
+        </button>
+      </div>
+
+      {/* Weather strip */}
+      <LG onClick={() => onNav('weather')} style={{ padding:'16px 18px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+          <span style={{ fontSize:12, color:T.textSoft }}>London, UK</span>
+          <div style={{ display:'flex', alignItems:'flex-end', gap:6 }}>
+            <span style={{ fontSize:36, fontWeight:200, color:T.text, lineHeight:1 }}>18°</span>
+            <span style={{ fontSize:13, color:T.textMid, marginBottom:5 }}>Partly Cloudy</span>
+          </div>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
+          <div style={{ width:48, height:48, borderRadius:16, background: `${accent}18`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <Icon name="sun" size={24} color={accent} />
+          </div>
+          <div style={{ display:'flex', gap:10 }}>
+            {['Mon','Tue','Wed'].map((d,i) => (
+              <div key={d} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:1 }}>
+                <span style={{ fontSize:9, color:T.textSoft }}>{d}</span>
+                <span style={{ fontSize:11, fontWeight:500, color:T.textMid }}>{[17,21,15][i]}°</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </LG>
+
+      {/* Atlas summary */}
+      <LG style={{ padding:'16px 18px' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+          <div style={{ width:30, height:30, borderRadius:10, background:`linear-gradient(135deg, ${accent}, oklch(68% 0.12 28))`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <Icon name="sparkle" size={14} color="white" sw={1.8}/>
+          </div>
+          <span style={{ fontSize:13, fontWeight:600, color:T.text }}>Atlas Summary</span>
+          <span style={{ marginLeft:'auto', fontSize:10, color:T.textSoft }}>Just now</span>
+        </div>
+        <p style={{ fontSize:13.5, color:T.textMid, lineHeight:1.58, fontWeight:400 }}>
+          You have <strong style={{ color:T.text }}>3 meetings</strong> today starting at 10am. 
+          Sarah sent a proposal — Atlas flagged it as <strong style={{ color:accent }}>high priority</strong>. 
+          Your 5pm gym reminder is set. Weather looks clear for your commute.
+        </p>
+      </LG>
+
+      {/* Quick actions */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+        {[
+          { icon:'calendar', label:'Calendar', color:T.sage,  bg:T.sageLight,  nav:'calendar' },
+          { icon:'mail',     label:'Email',    color:T.slate, bg:T.slateLight, nav:'mail' },
+          { icon:'bell',     label:'Reminders',color:accent,  bg:`${accent}15`,nav:'reminders' },
+          { icon:'cloud',    label:'Weather',  color:T.slate, bg:T.slateLight, nav:'weather' },
+        ].map(a => (
+          <LG key={a.label} onClick={() => onNav(a.nav)} style={{ padding:'14px 16px', display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:36, height:36, borderRadius:12, background:a.bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <Icon name={a.icon} size={17} color={a.color}/>
+            </div>
+            <span style={{ fontSize:13, fontWeight:500, color:T.text }}>{a.label}</span>
+          </LG>
+        ))}
+      </div>
+
+      {/* Today's events */}
+      <LG style={{ padding:'16px 18px' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+          <span style={{ fontSize:14, fontWeight:600, color:T.text }}>Today</span>
+          <button onClick={() => onNav('calendar')} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:2, color:accent, fontSize:12, fontWeight:500 }}>
+            See all <Icon name="chevR" size={13} color={accent}/>
+          </button>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:11 }}>
+          {[
+            { time:'10:00', title:'Team Standup',  tag:'Work',     color:T.sage },
+            { time:'12:30', title:'Lunch — James', tag:'Personal', color:accent },
+            { time:'15:00', title:'Design Review', tag:'Work',     color:T.sage },
+          ].map((e,i) => (
+            <div key={i} style={{ display:'flex', alignItems:'center', gap:12 }}>
+              <div style={{ width:3, height:38, borderRadius:4, background:e.color, flexShrink:0 }}></div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, fontWeight:500, color:T.text }}>{e.title}</div>
+                <div style={{ fontSize:11, color:T.textSoft }}>{e.time} · {e.tag}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </LG>
+    </div>
+  </Screen>
+);
+
+// ── CALENDAR ─────────────────────────────────────────────────
+const CalendarScreen = ({ accent }) => {
+  const [sel, setSel] = useState(30);
+  const hasEvent = [3,7,12,14,18,21,25,28,30];
+  const eventsFor = d => d === 30
+    ? [{ time:'10:00', end:'10:45', title:'Team Standup', tag:'Work', color:T.sage },
+       { time:'12:30', end:'14:00', title:'Lunch — James', tag:'Personal', color:accent },
+       { time:'15:00', end:'16:30', title:'Design Review', tag:'Work', color:T.sage }]
+    : [{ time:'11:00', end:'11:30', title:'Quick Sync', tag:'Work', color:T.sage }];
+
+  return (
+    <Screen>
+      <div style={{ padding:'8px 18px 100px', display:'flex', flexDirection:'column', gap:12 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div style={{ fontSize:24, fontWeight:600, color:T.text, letterSpacing:'-0.02em' }}>April 2026</div>
+          <div style={{ display:'flex', gap:8 }}>
+            {['chevL','chevR'].map(ic => (
+              <button key={ic} className="tappable" style={{ width:34, height:34, borderRadius:T.rSm, background:'rgba(255,255,255,0.6)', border:'1px solid rgba(255,255,255,0.9)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <Icon name={ic} size={15} color={T.textMid}/>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Day labels */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)' }}>
+          {['S','M','T','W','T','F','S'].map((d,i) => (
+            <div key={i} style={{ textAlign:'center', fontSize:11, fontWeight:600, color:T.textSoft, paddingBottom:4 }}>{d}</div>
+          ))}
+        </div>
+
+        {/* Grid */}
+        <LG style={{ padding:'10px 8px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:3 }}>
+            {[0,1,2].map(i => <div key={`e${i}`}></div>)}
+            {Array.from({length:30},(_, i)=>i+1).map(d => {
+              const isSelected = d === sel;
+              const dot = hasEvent.includes(d);
+              return (
+                <div key={d} onClick={() => setSel(d)} className="tappable" style={{
+                  display:'flex', flexDirection:'column', alignItems:'center', gap:2,
+                  padding:'5px 0', borderRadius:12,
+                  background: isSelected ? accent : 'transparent',
+                  transition:'all 0.2s ease',
+                }}>
+                  <span style={{ fontSize:13, fontWeight: isSelected ? 600 : 400, color: isSelected ? 'white' : T.text }}>{d}</span>
+                  {dot && <div style={{ width:4, height:4, borderRadius:'50%', background: isSelected ? 'rgba(255,255,255,0.6)' : accent }}></div>}
+                </div>
+              );
+            })}
+          </div>
+        </LG>
+
+        <div style={{ fontSize:13, fontWeight:600, color:T.textMid }}>April {sel}</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {eventsFor(sel).map((e,i) => (
+            <LG key={i} style={{ padding:'14px 16px', display:'flex', gap:12, alignItems:'center' }}>
+              <div style={{ width:3, height:44, borderRadius:4, background:e.color, flexShrink:0 }}></div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:14, fontWeight:500, color:T.text }}>{e.title}</div>
+                <div style={{ fontSize:12, color:T.textSoft, marginTop:2 }}>{e.time}–{e.end} · {e.tag}</div>
+              </div>
+            </LG>
+          ))}
+        </div>
+      </div>
+    </Screen>
+  );
+};
+
+// ── CHAT ─────────────────────────────────────────────────────
+const ChatScreen = ({ accent }) => {
+  const [messages, setMessages] = useState([
+    { role:'ai',   text:"Hi Kiyan! I'm Atlas, your AI assistant. I've reviewed your schedule and emails — what can I help you with today?" },
+    { role:'user', text:'Summarise my emails from this morning' },
+    { role:'ai',   text:"You received 7 emails this morning:\n\n• Sarah sent the Q2 proposal — marked high priority\n• 3 newsletters (unread)\n• Meeting confirmation for Thursday at 2pm\n• Invoice from Webflow ($49)\n• A reply from Marcus about the project timeline" },
+  ]);
+  const [input, setInput] = useState('');
+  const containerRef = useRef(null);
+
+  const send = () => {
+    if (!input.trim()) return;
+    const txt = input.trim();
+    setMessages(m => [...m, { role:'user', text:txt }]);
+    setInput('');
+    setTimeout(() => setMessages(m => [...m, { role:'ai', text:"Got it! Let me think about that… Here's what I found based on your data." }]), 800);
+  };
+
+  useEffect(() => {
+    if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight;
+  }, [messages]);
+
+  return (
+    <div className="screen-in" style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, paddingTop: T.STATUS_H }}>
+      {/* Header */}
+      <div className="lg" style={{ padding:'12px 18px', borderRadius:0, borderLeft:'none', borderRight:'none', borderTop:'none', display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
+        <div style={{ width:40, height:40, borderRadius:14, background:`linear-gradient(135deg, ${accent}, oklch(68% 0.12 28))`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <Icon name="sparkle" size={18} color="white" sw={1.6}/>
+        </div>
+        <div>
+          <div style={{ fontSize:16, fontWeight:600, color:T.text }}>Atlas</div>
+          <div style={{ fontSize:11, color:T.sage, display:'flex', alignItems:'center', gap:4 }}>
+            <div style={{ width:6, height:6, borderRadius:'50%', background:T.sage }}></div>
+            AI · Always on
+          </div>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div ref={containerRef} style={{ flex:1, overflowY:'auto', padding:'16px 16px', display:'flex', flexDirection:'column', gap:12, minHeight:0 }}>
+        {messages.map((m,i) => (
+          <div key={i} style={{ display:'flex', justifyContent: m.role==='user'?'flex-end':'flex-start', alignItems:'flex-end', gap:8,
+            animation:'fadeSlideIn 0.22s ease both', animationDelay:`${i*0.04}s` }}>
+            {m.role==='ai' && (
+              <div style={{ width:26, height:26, borderRadius:9, background:`linear-gradient(135deg, ${accent}, oklch(68% 0.12 28))`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <Icon name="sparkle" size={12} color="white" sw={2}/>
+              </div>
+            )}
+            <div className={m.role==='ai' ? 'lg' : ''} style={{
+              maxWidth:'76%', padding:'10px 14px',
+              borderRadius: m.role==='user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+              background: m.role==='user' ? accent : undefined,
+              fontSize:13.5, lineHeight:1.55,
+              color: m.role==='user' ? 'white' : T.text,
+              whiteSpace:'pre-line',
+            }}>
+              {m.text}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Suggestions */}
+      <div style={{ padding:'0 12px 8px', display:'flex', gap:8, overflowX:'auto', flexShrink:0 }}>
+        {["What's my day like?", 'Draft a reply to Sarah', 'Set a reminder'].map((s,i) => (
+          <button key={i} onClick={() => setInput(s)} className="lg tappable" style={{ flexShrink:0, padding:'7px 13px', borderRadius:T.rFull, fontSize:12, color:T.textMid, cursor:'pointer', border:'none', whiteSpace:'nowrap', background:undefined }}>
+            {s}
+          </button>
+        ))}
+      </div>
+
+      {/* Input */}
+      <div className="lg" style={{ padding:'10px 14px 90px', borderRadius:0, borderLeft:'none', borderRight:'none', borderBottom:'none', display:'flex', gap:10, alignItems:'flex-end', flexShrink:0 }}>
+        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key==='Enter' && send()}
+          placeholder="Ask Atlas anything…"
+          style={{ flex:1, padding:'11px 16px', borderRadius:T.rFull, background:'rgba(255,255,255,0.7)', border:'1px solid rgba(255,255,255,0.9)', fontSize:14, color:T.text, outline:'none', fontFamily:'DM Sans, sans-serif', transition:'box-shadow 0.2s' }}/>
+        <button onClick={send} className="tappable" style={{ width:42, height:42, borderRadius:'50%', background:accent, border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+          <Icon name="send" size={16} color="white"/>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── MAIL ─────────────────────────────────────────────────────
+const MailScreen = ({ accent }) => {
+  const [sel, setSel] = useState(null);
+  const emails = [
+    { from:'Sarah K.',  subject:'Q2 Proposal — please review',  preview:'Hey Kiyan, I\'ve attached the latest version of the Q2 proposal…', time:'9:14am', ai:'High priority · Action needed', unread:true,  avatar:'S', color:accent },
+    { from:'Marcus R.', subject:'Re: Project timeline update',   preview:'Sounds good to me. I think we can push the deadline to next Friday…', time:'8:42am', ai:'Low priority · Informational', unread:true,  avatar:'M', color:T.sage },
+    { from:'Webflow',   subject:'Your invoice for April',        preview:'Invoice #WF-20489. Amount due: $49.00. Due date: May 15, 2026.', time:'7:30am', ai:'Finance · $49 due May 15',    unread:false, avatar:'W', color:T.slate },
+    { from:'Notion',    subject:'Weekly digest — 14 updates',    preview:'Here\'s what happened in your workspace this week…', time:'Yesterday', ai:'Newsletter · Low priority',    unread:false, avatar:'N', color:T.slate },
+    { from:'James P.',  subject:'Lunch tomorrow still on?',      preview:'Hey! Just checking if we\'re still good for tomorrow at 12:30.', time:'Yesterday', ai:'Personal · Reply suggested',   unread:false, avatar:'J', color:accent },
+  ];
+
+  if (sel !== null) {
+    const e = emails[sel];
+    return (
+      <div className="screen-in" style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, paddingTop: T.STATUS_H }}>
+        <div className="lg" style={{ padding:'12px 18px', borderRadius:0, borderLeft:'none', borderRight:'none', borderTop:'none', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+          <button onClick={() => setSel(null)} className="tappable" style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:4, color:accent, fontSize:14, fontWeight:500 }}>
+            <Icon name="chevL" size={18} color={accent}/> Back
+          </button>
+        </div>
+        <div style={{ flex:1, overflowY:'auto', padding:'16px 18px', display:'flex', flexDirection:'column', gap:14 }}>
+          <div style={{ fontSize:19, fontWeight:600, color:T.text, lineHeight:1.3 }}>{e.subject}</div>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:36, height:36, borderRadius:'50%', background:e.color, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <span style={{ fontSize:14, color:'white', fontWeight:600 }}>{e.avatar}</span>
+            </div>
+            <div>
+              <div style={{ fontSize:13, fontWeight:500, color:T.text }}>{e.from}</div>
+              <div style={{ fontSize:11, color:T.textSoft }}>Today · {e.time}</div>
+            </div>
+          </div>
+          <LG style={{ padding:'12px 14px', display:'flex', alignItems:'flex-start', gap:8 }}>
+            <Icon name="sparkle" size={15} color={accent}/>
+            <div>
+              <div style={{ fontSize:11, fontWeight:600, color:accent, marginBottom:3 }}>Atlas Summary</div>
+              <div style={{ fontSize:12.5, color:T.textMid, lineHeight:1.5 }}>{e.ai}</div>
+            </div>
+          </LG>
+          <div style={{ fontSize:14, color:T.textMid, lineHeight:1.75 }}>
+            {e.preview} This is a follow-up to our conversation last week. I've included all the relevant files in this thread.
+            <br/><br/>Looking forward to your feedback!<br/><br/>Best,<br/>{e.from}
+          </div>
+        </div>
+        <div className="lg" style={{ padding:'12px 18px 90px', borderRadius:0, borderLeft:'none', borderRight:'none', borderBottom:'none' }}>
+          <button className="tappable" style={{ width:'100%', padding:'13px', borderRadius:T.r, background:accent, border:'none', color:'white', fontSize:14, fontWeight:600, cursor:'pointer' }}>
+            Draft Reply with Atlas
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="screen-in" style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, paddingTop: T.STATUS_H }}>
+      <div className="lg" style={{ padding:'12px 18px', borderRadius:0, borderLeft:'none', borderRight:'none', borderTop:'none', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+        <div style={{ fontSize:22, fontWeight:600, color:T.text }}>Inbox</div>
+        <div style={{ display:'flex', gap:12 }}>
+          <button style={{ background:'none', border:'none', cursor:'pointer' }}><Icon name="search" size={20} color={T.textMid}/></button>
+          <button style={{ background:'none', border:'none', cursor:'pointer' }}><Icon name="settings" size={20} color={T.textMid}/></button>
+        </div>
+      </div>
+      <div style={{ flex:1, overflowY:'auto', paddingBottom:90 }}>
+        {emails.map((e,i) => (
+          <div key={i} onClick={() => setSel(i)} className="tappable" style={{
+            padding:'14px 18px', borderBottom:'1px solid rgba(0,0,0,0.04)',
+            background: e.unread ? 'rgba(255,255,255,0.45)' : 'transparent',
+            transition:'background 0.15s',
+          }}>
+            <div style={{ display:'flex', gap:12, alignItems:'flex-start' }}>
+              <div style={{ width:42, height:42, borderRadius:14, background:e.color, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <span style={{ fontSize:16, color:'white', fontWeight:600 }}>{e.avatar}</span>
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:2 }}>
+                  <span style={{ fontSize:13.5, fontWeight: e.unread?600:500, color:T.text }}>{e.from}</span>
+                  <span style={{ fontSize:11, color:T.textSoft }}>{e.time}</span>
+                </div>
+                <div style={{ fontSize:13, fontWeight: e.unread?500:400, color:T.text, marginBottom:3 }}>{e.subject}</div>
+                <div style={{ fontSize:12, color:T.textSoft, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.preview}</div>
+                <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:5 }}>
+                  <Icon name="sparkle" size={11} color={accent}/>
+                  <span style={{ fontSize:11, color:accent, fontWeight:500 }}>{e.ai}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ── REMINDERS ────────────────────────────────────────────────
+const RemindersScreen = ({ accent }) => {
+  const [todos, setTodos] = useState([
+    { text:"Review Sarah's Q2 proposal", done:false, time:'11:00am', tag:'Work' },
+    { text:'Book gym session',           done:false, time:'5:00pm',  tag:'Health' },
+    { text:'Call mum',                   done:true,  time:'Done',    tag:'Personal' },
+    { text:'Pay Webflow invoice',        done:false, time:'Today',   tag:'Finance' },
+    { text:'Finish design system draft', done:false, time:'Tomorrow',tag:'Work' },
+  ]);
+  const [newText, setNewText] = useState('');
+  const toggle = i => setTodos(t => t.map((r,j) => j===i ? {...r, done:!r.done} : r));
+  const del    = i => setTodos(t => t.filter((_,j) => j!==i));
+  const add    = () => { if (!newText.trim()) return; setTodos(t => [...t, { text:newText.trim(), done:false, time:'Today', tag:'Personal' }]); setNewText(''); };
+  const tagColor = { Work:T.sage, Health:accent, Personal:T.slate, Finance:T.slate };
+
+  return (
+    <div className="screen-in" style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, paddingTop: T.STATUS_H }}>
+      <div className="lg" style={{ padding:'12px 18px', borderRadius:0, borderLeft:'none', borderRight:'none', borderTop:'none', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+        <div style={{ fontSize:22, fontWeight:600, color:T.text }}>Reminders</div>
+        <div style={{ fontSize:12, color:T.textSoft }}>{todos.filter(t=>!t.done).length} pending</div>
+      </div>
+      <div style={{ flex:1, overflowY:'auto', padding:'14px 18px 90px', display:'flex', flexDirection:'column', gap:8 }}>
+        {['Pending','Done'].map(group => {
+          const items = todos.map((t,i)=>({...t,i})).filter(t => group==='Pending' ? !t.done : t.done);
+          if (!items.length) return null;
+          return (
+            <div key={group}>
+              <div style={{ fontSize:11, fontWeight:600, color:T.textSoft, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:8, marginTop: group==='Done'?8:0 }}>{group}</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {items.map(({ text, done, time, tag, i }) => (
+                  <LG key={i} style={{ padding:'12px 14px', display:'flex', alignItems:'center', gap:12, opacity: done ? 0.6 : 1, transition:'opacity 0.2s' }}>
+                    <button onClick={() => toggle(i)} className="tappable" style={{ width:24, height:24, borderRadius:'50%', flexShrink:0, border:`2px solid ${done ? accent : 'rgba(0,0,0,0.15)'}`, background: done ? accent : 'transparent', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.2s' }}>
+                      {done && <Icon name="check" size={11} color="white" sw={2.5}/>}
+                    </button>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:13.5, color:T.text, textDecoration: done?'line-through':'none' }}>{text}</div>
+                      <div style={{ display:'flex', gap:8, marginTop:3, alignItems:'center' }}>
+                        <span style={{ fontSize:11, color:T.textSoft }}>{time}</span>
+                        <div style={{ width:4, height:4, borderRadius:'50%', background: tagColor[tag]||T.slate }}></div>
+                        <span style={{ fontSize:11, color: tagColor[tag]||T.slate, fontWeight:500 }}>{tag}</span>
+                      </div>
+                    </div>
+                    <button onClick={() => del(i)} className="tappable" style={{ background:'none', border:'none', cursor:'pointer', padding:4 }}>
+                      <Icon name="trash" size={15} color={T.textSoft}/>
+                    </button>
+                  </LG>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="lg" style={{ padding:'10px 14px 90px', borderRadius:0, borderLeft:'none', borderRight:'none', borderBottom:'none', display:'flex', gap:10, flexShrink:0 }}>
+        <input value={newText} onChange={e => setNewText(e.target.value)} onKeyDown={e => e.key==='Enter' && add()}
+          placeholder="Add a reminder…"
+          style={{ flex:1, padding:'11px 16px', borderRadius:T.rFull, background:'rgba(255,255,255,0.7)', border:'1px solid rgba(255,255,255,0.9)', fontSize:14, color:T.text, outline:'none', fontFamily:'DM Sans, sans-serif', transition:'box-shadow 0.2s' }}/>
+        <button onClick={add} className="tappable" style={{ width:44, height:44, borderRadius:'50%', background:accent, border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <Icon name="plus" size={19} color="white" sw={2.2}/>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── WEATHER ──────────────────────────────────────────────────
+const WeatherScreen = ({ accent }) => {
+  const hourly = [
+    { t:'Now', temp:18, icon:'sun' }, { t:'1pm', temp:20, icon:'sun' },
+    { t:'2pm', temp:21, icon:'sun' }, { t:'3pm', temp:20, icon:'cloud' },
+    { t:'4pm', temp:19, icon:'cloud' }, { t:'5pm', temp:17, icon:'cloud' },
+  ];
+  const weekly = [
+    { day:'Today', hi:21, lo:13, icon:'sun',   summary:'Sunny' },
+    { day:'Thu',   hi:19, lo:11, icon:'cloud', summary:'Cloudy' },
+    { day:'Fri',   hi:16, lo:10, icon:'drop',  summary:'Rainy' },
+    { day:'Sat',   hi:18, lo:12, icon:'cloud', summary:'Overcast' },
+    { day:'Sun',   hi:23, lo:14, icon:'sun',   summary:'Sunny' },
+  ];
+  return (
+    <Screen>
+      <div style={{ padding:'8px 18px 100px', display:'flex', flexDirection:'column', gap:13 }}>
+        <LG style={{ padding:'26px 22px', textAlign:'center', background:`linear-gradient(160deg, ${accent}18 0%, oklch(90% 0.04 200 / 0.3) 100%)` }}>
+          <div style={{ fontSize:13, color:T.textMid, marginBottom:4 }}>London, United Kingdom</div>
+          <div style={{ fontSize:80, fontWeight:200, color:T.text, letterSpacing:'-0.04em', lineHeight:1 }}>18°</div>
+          <div style={{ fontSize:16, color:T.textMid, marginTop:6, fontWeight:400 }}>Partly Cloudy</div>
+          <div style={{ display:'flex', justifyContent:'center', gap:22, marginTop:18 }}>
+            {[{ icon:'drop', label:'62% humidity' },{ icon:'wind', label:'12 km/h' },{ icon:'sun', label:'UV index 4' }].map((s,i) => (
+              <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5 }}>
+                <Icon name={s.icon} size={17} color={T.textMid}/>
+                <span style={{ fontSize:11, color:T.textSoft }}>{s.label}</span>
+              </div>
+            ))}
+          </div>
+        </LG>
+        <LG style={{ padding:'14px 16px' }}>
+          <div style={{ fontSize:11, fontWeight:600, color:T.textSoft, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:12 }}>Hourly</div>
+          <div style={{ display:'flex', gap:8, overflowX:'auto', paddingBottom:2 }}>
+            {hourly.map((h,i) => (
+              <div key={i} className="lg" style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, flexShrink:0, padding:'8px 12px', borderRadius:16, border: i===0 ? `1.5px solid ${accent}44` : undefined, background: i===0 ? `${accent}12` : undefined }}>
+                <span style={{ fontSize:10, color: i===0?accent:T.textSoft, fontWeight: i===0?600:400 }}>{h.t}</span>
+                <Icon name={h.icon} size={18} color={ i===0?accent:T.textMid}/>
+                <span style={{ fontSize:13, fontWeight:500, color: i===0?accent:T.text }}>{h.temp}°</span>
+              </div>
+            ))}
+          </div>
+        </LG>
+        <LG style={{ padding:'14px 18px' }}>
+          <div style={{ fontSize:11, fontWeight:600, color:T.textSoft, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:12 }}>5-Day Forecast</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:11 }}>
+            {weekly.map((w,i) => (
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:12 }}>
+                <span style={{ fontSize:13, color:T.textMid, width:46, fontWeight: i===0?600:400 }}>{w.day}</span>
+                <Icon name={w.icon} size={17} color={T.textMid}/>
+                <span style={{ fontSize:12, color:T.textSoft, flex:1 }}>{w.summary}</span>
+                <span style={{ fontSize:13, color:T.text, fontWeight:500 }}>{w.hi}°</span>
+                <span style={{ fontSize:13, color:T.textSoft }}>{w.lo}°</span>
+              </div>
+            ))}
+          </div>
+        </LG>
+        <LG style={{ padding:'14px 16px', display:'flex', gap:10, alignItems:'flex-start' }}>
+          <div style={{ width:32, height:32, borderRadius:11, background:`${accent}18`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <Icon name="sparkle" size={15} color={accent}/>
+          </div>
+          <div>
+            <div style={{ fontSize:12, fontWeight:600, color:accent, marginBottom:4 }}>Atlas Suggests</div>
+            <div style={{ fontSize:13, color:T.textMid, lineHeight:1.55 }}>Rain expected Friday — your outdoor meeting has been flagged. Consider rescheduling or moving it indoors.</div>
+          </div>
+        </LG>
+      </div>
+    </Screen>
+  );
+};
+
+// ── SETTINGS ─────────────────────────────────────────────────
+const SettingsScreen = ({ onBack, accent }) => {
+  const [googleLinked, setGoogleLinked] = useState(false);
+  const [calSync, setCalSync] = useState(false);
+  const [gmailSync, setGmailSync] = useState(false);
+  const [linking, setLinking] = useState(false);
+
+  const handleLink = () => {
+    setLinking(true);
+    setTimeout(() => { setLinking(false); setGoogleLinked(true); setCalSync(true); setGmailSync(true); }, 1600);
+  };
+
+  const Toggle = ({ val, onChange }) => (
+    <div onClick={() => onChange(!val)} className="tappable" style={{
+      width:46, height:27, borderRadius:T.rFull,
+      background: val ? accent : 'rgba(0,0,0,0.12)',
+      position:'relative', cursor:'pointer', flexShrink:0,
+      transition:'background 0.25s ease',
+    }}>
+      <div style={{
+        position:'absolute', top:3, left: val ? 22 : 3,
+        width:21, height:21, borderRadius:'50%', background:'white',
+        boxShadow:'0 1px 4px rgba(0,0,0,0.18)',
+        transition:'left 0.25s cubic-bezier(0.34,1.56,0.64,1)',
+      }}></div>
+    </div>
+  );
+
+  return (
+    <div className="screen-in" style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, paddingTop: T.STATUS_H }}>
+      <div className="lg" style={{ padding:'12px 18px', borderRadius:0, borderLeft:'none', borderRight:'none', borderTop:'none', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+        <button onClick={onBack} className="tappable" style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:4, color:accent, fontSize:14, fontWeight:500 }}>
+          <Icon name="chevL" size={18} color={accent}/> Back
+        </button>
+        <span style={{ fontSize:17, fontWeight:600, color:T.text }}>Settings</span>
+      </div>
+
+      <div style={{ flex:1, overflowY:'auto', padding:'18px 18px 100px', display:'flex', flexDirection:'column', gap:20 }}>
+
+        {/* Profile */}
+        <LG style={{ padding:'18px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+            <div style={{ width:52, height:52, borderRadius:'50%', background:`linear-gradient(135deg, ${accent}, oklch(68% 0.12 28))`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <span style={{ color:'white', fontSize:22, fontWeight:600 }}>K</span>
+            </div>
+            <div>
+              <div style={{ fontSize:16, fontWeight:600, color:T.text }}>Kiyan</div>
+              <div style={{ fontSize:13, color:T.textSoft }}>kiyan@example.com</div>
+            </div>
+          </div>
+        </LG>
+
+        {/* Google Connect */}
+        <div>
+          <div style={{ fontSize:12, fontWeight:600, color:T.textSoft, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:10, paddingLeft:4 }}>Connected Accounts</div>
+          <LG style={{ padding:'18px' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom: googleLinked ? 16 : 0 }}>
+              <div style={{ width:40, height:40, borderRadius:13, background:'white', border:'1px solid rgba(0,0,0,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                {/* Google G */}
+                <svg width="22" height="22" viewBox="0 0 48 48">
+                  <path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"/>
+                  <path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.32-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"/>
+                  <path fill="#FBBC05" d="M11.68 28.18A13.9 13.9 0 0110.8 24c0-1.45.25-2.86.88-4.18v-5.7H4.34A23.93 23.93 0 002 24c0 3.87.92 7.54 2.34 10.88l7.34-6.7z"/>
+                  <path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.34 5.7C13.42 14.62 18.27 10.75 24 10.75z"/>
+                </svg>
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:14, fontWeight:500, color:T.text }}>Google Account</div>
+                <div style={{ fontSize:12, color: googleLinked ? T.sage : T.textSoft }}>
+                  {googleLinked ? '✓ Connected' : 'Not connected'}
+                </div>
+              </div>
+              {!googleLinked && (
+                <button onClick={handleLink} className="tappable" style={{
+                  padding:'8px 16px', borderRadius:T.rFull,
+                  background: linking ? 'rgba(0,0,0,0.08)' : accent,
+                  border:'none', color:'white', fontSize:13, fontWeight:600, cursor:'pointer',
+                  transition:'all 0.2s',
+                }}>
+                  {linking ? '…' : 'Connect'}
+                </button>
+              )}
+            </div>
+
+            {googleLinked && (
+              <div style={{ display:'flex', flexDirection:'column', gap:12, borderTop:'1px solid rgba(0,0,0,0.06)', paddingTop:14 }}>
+                {[
+                  { icon:'calendar', label:'Sync Google Calendar', val:calSync, set:setCalSync, desc:'Import events & meetings' },
+                  { icon:'mail',     label:'Sync Gmail',            val:gmailSync,set:setGmailSync, desc:'AI summaries & smart replies' },
+                ].map(item => (
+                  <div key={item.label} style={{ display:'flex', alignItems:'center', gap:12 }}>
+                    <div style={{ width:34, height:34, borderRadius:11, background:`${accent}15`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <Icon name={item.icon} size={16} color={accent}/>
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:13, fontWeight:500, color:T.text }}>{item.label}</div>
+                      <div style={{ fontSize:11, color:T.textSoft }}>{item.desc}</div>
+                    </div>
+                    <Toggle val={item.val} onChange={item.set}/>
+                  </div>
+                ))}
+              </div>
+            )}
+          </LG>
+        </div>
+
+        {/* Privacy */}
+        <div>
+          <div style={{ fontSize:12, fontWeight:600, color:T.textSoft, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:10, paddingLeft:4 }}>Privacy & AI</div>
+          <LG style={{ padding:'14px 18px', display:'flex', flexDirection:'column', gap:14 }}>
+            {[
+              { icon:'shield', label:'On-device processing', desc:'AI runs locally when possible', on:true },
+              { icon:'link',   label:'Share context with Atlas', desc:'Personalise suggestions', on:true },
+            ].map((item,i) => (
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:12 }}>
+                <div style={{ width:34, height:34, borderRadius:11, background:`${accent}15`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <Icon name={item.icon} size={16} color={accent}/>
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:500, color:T.text }}>{item.label}</div>
+                  <div style={{ fontSize:11, color:T.textSoft }}>{item.desc}</div>
+                </div>
+                <Toggle val={item.on} onChange={() => {}}/>
+              </div>
+            ))}
+          </LG>
+        </div>
+
+        {/* Atlas version */}
+        <LG style={{ padding:'14px 18px', display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ width:36, height:36, borderRadius:12, background:`linear-gradient(135deg, ${accent}, oklch(68% 0.12 28))`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <Icon name="sparkle" size={17} color="white"/>
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:13, fontWeight:500, color:T.text }}>Atlas AI</div>
+            <div style={{ fontSize:11, color:T.textSoft }}>Version 2.4 · Up to date</div>
+          </div>
+          <span style={{ fontSize:11, color:T.sage, fontWeight:600, background:T.sageLight, padding:'4px 10px', borderRadius:T.rFull }}>Active</span>
+        </LG>
+      </div>
+    </div>
+  );
+};
+
+// ── ROOT APP ─────────────────────────────────────────────────
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accentColor": "#be6637",
+  "userName": "Kiyan"
+}/*EDITMODE-END*/;
+
+const App = () => {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [screen, setScreen] = useState('home');
+  const accent = tweaks.accentColor;
+  const name   = tweaks.userName || 'Kiyan';
+
+  const screens = {
+    home:      <HomeScreen      onNav={setScreen} accent={accent} name={name} />,
+    calendar:  <CalendarScreen  accent={accent} />,
+    chat:      <ChatScreen      accent={accent} />,
+    mail:      <MailScreen      accent={accent} />,
+    reminders: <RemindersScreen accent={accent} />,
+    weather:   <WeatherScreen   accent={accent} />,
+    settings:  <SettingsScreen  onBack={() => setScreen('home')} accent={accent} />,
+  };
+
+  const navScreens = ['home','calendar','chat','mail','reminders'];
+
+  return (
+    <>
+      <IOSDevice dark={false} style={{ fontFamily:'DM Sans, sans-serif' }}>
+        <div style={{ display:'flex', flexDirection:'column', height:'100%', background:T.bg, overflow:'hidden', position:'relative' }}>
+          {/* screen */}
+          <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', minHeight:0 }}>
+            {screens[screen] || screens.home}
+          </div>
+
+          {/* Bottom nav (hidden on settings/weather) */}
+          {screen !== 'settings' && (
+            <BottomNav active={navScreens.includes(screen) ? screen : null} onNav={setScreen} accent={accent}/>
+          )}
+        </div>
+      </IOSDevice>
+
+      <TweaksPanel>
+        <TweakSection title="Brand">
+          <TweakColor label="Accent Color" value={tweaks.accentColor} onChange={v => setTweak('accentColor', v)} />
+          <TweakText  label="Your Name"    value={tweaks.userName}    onChange={v => setTweak('userName', v)} />
+        </TweakSection>
+      </TweaksPanel>
+    </>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

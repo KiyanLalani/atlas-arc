@@ -18,6 +18,7 @@ interface Email {
   subject: string
   preview: string
   body: string
+  bodyHtml: string
   time: string
   isUnread: boolean
   avatar: string
@@ -51,6 +52,7 @@ export default function MailPage() {
           subject: e.subject,
           preview: e.snippet,
           body: e.body || e.snippet,
+          bodyHtml: e.bodyHtml || '',
           time: e.date,
           isUnread: e.isUnread,
           avatar: e.avatar,
@@ -146,7 +148,22 @@ export default function MailPage() {
               </div>
             </LGCard>
           )}
-          <div style={{ fontSize: 14, color: 'var(--text-mid)', lineHeight: 1.75, whiteSpace: 'pre-line' }}>{selected.body || selected.preview}</div>
+          {selected.bodyHtml ? (
+            <iframe
+              srcDoc={selected.bodyHtml}
+              sandbox="allow-popups allow-same-origin"
+              style={{ width: '100%', border: 'none', borderRadius: 8, minHeight: 300 }}
+              onLoad={(e) => {
+                const f = e.currentTarget
+                try {
+                  const h = f.contentDocument?.documentElement?.scrollHeight
+                  if (h) f.style.height = h + 'px'
+                } catch {}
+              }}
+            />
+          ) : (
+            <div style={{ fontSize: 14, color: 'var(--text-mid)', lineHeight: 1.75, whiteSpace: 'pre-line' }}>{selected.body || selected.preview}</div>
+          )}
           {selected.attachments.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Attachments</div>

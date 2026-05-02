@@ -12,7 +12,8 @@ export interface EmailMessage {
   fromName: string
   subject: string
   snippet: string
-  body: string
+  body: string      // stripped text — used for AI draft replies
+  bodyHtml: string  // raw HTML — rendered in iframe
   date: string
   isUnread: boolean
   avatar: string
@@ -61,7 +62,6 @@ export async function getEmails(accessToken: string): Promise<EmailMessage[]> {
     const fromName = fromMatch ? fromMatch[1].replace(/"/g, '').trim() : fromRaw
     const from = fromMatch ? fromMatch[2] : fromRaw
 
-    // Use internalDate (ms timestamp) — format on client to respect timezone
     const ts = parseInt(msg.internalDate || '0')
     const date = new Date(ts)
     const now = new Date()
@@ -70,7 +70,8 @@ export async function getEmails(accessToken: string): Promise<EmailMessage[]> {
       ? date.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' })
       : date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })
 
-    const body = extractBody(msg.payload)
+    const bodyHtml = extractHtml(msg.payload)
+    const body = bodyHtml ? htmlToText(bodyHtml) : extractPlainText(msg.payload)
     const attachments = extractAttachments(msg.payload)
 
     return {
@@ -80,6 +81,7 @@ export async function getEmails(accessToken: string): Promise<EmailMessage[]> {
       subject: getHeader('Subject') || '(no subject)',
       snippet: msg.snippet || '',
       body,
+      bodyHtml,
       date: dateStr,
       isUnread: (msg.labelIds || []).includes('UNREAD'),
       avatar: fromName.charAt(0).toUpperCase(),
@@ -88,42 +90,31 @@ export async function getEmails(accessToken: string): Promise<EmailMessage[]> {
   })
 }
 
-function extractBody(payload: any): string {
+function extractHtml(payload: any): string {
   if (!payload) return ''
+  if (payload.mimeType === 'text/html' && payload.body?.data) {
+    return Buffer.from(payload.body.data, 'base64url').toString('utf-8')
+  }
+  if (payload.parts) {
+    for (const part of payload.parts) {
+      const html = extractHtml(part)
+      if (html) return html
+    }
+  }
+  return ''
+}
 
-  // Plain text — preferred
+function extractPlainText(payload: any): string {
+  if (!payload) return ''
   if (payload.mimeType === 'text/plain' && payload.body?.data) {
     return Buffer.from(payload.body.data, 'base64url').toString('utf-8')
   }
-
-  // HTML — strip tags and return readable text
-  if (payload.mimeType === 'text/html' && payload.body?.data) {
-    const html = Buffer.from(payload.body.data, 'base64url').toString('utf-8')
-    return htmlToText(html)
-  }
-
   if (payload.parts) {
-    // For multipart/alternative: prefer HTML (stripped) — marketing plain-text
-    // versions are full of raw tracking URLs and are unreadable
-    if (payload.mimeType === 'multipart/alternative') {
-      for (const part of payload.parts) {
-        if (part.mimeType === 'text/html' && part.body?.data) {
-          return htmlToText(Buffer.from(part.body.data, 'base64url').toString('utf-8'))
-        }
-      }
-      for (const part of payload.parts) {
-        if (part.mimeType === 'text/plain' && part.body?.data) {
-          return Buffer.from(part.body.data, 'base64url').toString('utf-8')
-        }
-      }
-    }
-    // Recurse into all other parts
     for (const part of payload.parts) {
-      const text = extractBody(part)
+      const text = extractPlainText(part)
       if (text) return text
     }
   }
-
   return ''
 }
 
@@ -131,7 +122,6 @@ function htmlToText(html: string): string {
   return html
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    // Replace links with just their visible text (drop href URLs)
     .replace(/<a\s[^>]*>([\s\S]*?)<\/a>/gi, '$1')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n\n')
@@ -146,8 +136,6 @@ function htmlToText(html: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/\r\n/g, '\n')
-    // Remove any leftover bare URLs (tracking pixels etc)
-    .replace(/https?:\/\/[^\s]{60,}/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }
@@ -155,7 +143,6 @@ function htmlToText(html: string): string {
 function extractAttachments(payload: any): EmailAttachment[] {
   if (!payload) return []
   const results: EmailAttachment[] = []
-
   if (payload.filename?.trim() && payload.body?.attachmentId) {
     results.push({
       name: payload.filename,
@@ -163,12 +150,10 @@ function extractAttachments(payload: any): EmailAttachment[] {
       size: payload.body.size || 0,
     })
   }
-
   if (payload.parts) {
     for (const part of payload.parts) {
       results.push(...extractAttachments(part))
     }
   }
-
   return results
 }

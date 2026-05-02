@@ -6,6 +6,12 @@ import { useRouter } from 'next/navigation'
 import Icon from '@/components/Icon'
 import LGCard from '@/components/LGCard'
 
+interface Attachment {
+  name: string
+  mimeType: string
+  size: number
+}
+
 interface Email {
   id: string
   fromName: string
@@ -18,6 +24,7 @@ interface Email {
   aiSummary: string
   priority: 'high' | 'medium' | 'low'
   avatarColor: string
+  attachments: Attachment[]
 }
 
 const ACCENT = 'var(--orange)'
@@ -50,6 +57,7 @@ export default function MailPage() {
           aiSummary: d.summaries?.[i]?.summary ?? '',
           priority: d.summaries?.[i]?.priority ?? 'medium',
           avatarColor: COLORS[i % COLORS.length],
+          attachments: e.attachments ?? [],
         }))
         setEmails(mapped)
         setLoading(false)
@@ -138,7 +146,23 @@ export default function MailPage() {
               </div>
             </LGCard>
           )}
-          <div style={{ fontSize: 14, color: 'var(--text-mid)', lineHeight: 1.75, whiteSpace: 'pre-line' }}>{selected.body}</div>
+          <div style={{ fontSize: 14, color: 'var(--text-mid)', lineHeight: 1.75, whiteSpace: 'pre-line' }}>{selected.body || selected.preview}</div>
+          {selected.attachments.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Attachments</div>
+              {selected.attachments.map((a, i) => (
+                <LGCard key={i} style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 10, background: 'var(--slate-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon name="link" size={14} color="var(--slate)" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-soft)' }}>{a.size > 0 ? `${Math.round(a.size / 1024)} KB` : a.mimeType}</div>
+                  </div>
+                </LGCard>
+              ))}
+            </div>
+          )}
           {draft && (
             <LGCard style={{ padding: '14px 16px' }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: ACCENT, marginBottom: 8 }}>Atlas Draft Reply</div>

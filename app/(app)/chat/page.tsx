@@ -19,6 +19,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([GREETING])
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
+  const [suggestions, setSuggestions] = useState<string[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -26,6 +27,13 @@ export default function ChatPage() {
       containerRef.current.scrollTop = containerRef.current.scrollHeight
     }
   }, [messages])
+
+  useEffect(() => {
+    fetch('/api/suggestions')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.suggestions)) setSuggestions(d.suggestions) })
+      .catch(() => {})
+  }, [session?.accessToken])
 
   const send = async (text?: string) => {
     const msg = (text || input).trim()
@@ -75,10 +83,6 @@ export default function ChatPage() {
       setStreaming(false)
     }
   }
-
-  const suggestions = session?.accessToken
-    ? ["What's my day like?", 'Draft a reply to Sarah', 'Set a reminder']
-    : ["What's your name?", 'Tell me a productivity tip', 'What can you do?']
 
   return (
     <div

@@ -63,11 +63,11 @@ export async function summariseEmails(
 
   const response = await anthropic.messages.create({
     model: MODEL,
-    max_tokens: 600,
+    max_tokens: 1024,
     system: [
       {
         type: 'text',
-        text: 'You are Atlas, an AI assistant that summarises emails concisely. For each email output a JSON array. Each element: { "summary": "one-line summary", "priority": "high|medium|low" }. Output ONLY valid JSON, no extra text.',
+        text: 'You are Atlas, an AI assistant that summarises emails concisely. For each email output a JSON array. Each element: { "summary": "one-line summary under 12 words", "priority": "high|medium|low" }. Output ONLY the raw JSON array, no markdown fences, no extra text.',
         cache_control: { type: 'ephemeral' },
       },
     ],
@@ -75,9 +75,10 @@ export async function summariseEmails(
   })
 
   try {
-    const text =
-      response.content[0].type === 'text' ? response.content[0].text : '[]'
-    const parsed = JSON.parse(text.trim())
+    const raw = response.content[0].type === 'text' ? response.content[0].text : '[]'
+    // Strip markdown fences if Claude wrapped the JSON
+    const jsonMatch = raw.match(/\[[\s\S]*\]/)
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw.trim())
     return Array.isArray(parsed) ? parsed : []
   } catch {
     return emails.map(() => ({ summary: 'Unable to summarise', priority: 'medium' as const }))

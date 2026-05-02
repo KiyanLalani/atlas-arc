@@ -103,16 +103,17 @@ function extractBody(payload: any): string {
   }
 
   if (payload.parts) {
-    // For multipart/alternative prefer plain text, then HTML
+    // For multipart/alternative: prefer HTML (stripped) — marketing plain-text
+    // versions are full of raw tracking URLs and are unreadable
     if (payload.mimeType === 'multipart/alternative') {
-      for (const part of payload.parts) {
-        if (part.mimeType === 'text/plain' && part.body?.data) {
-          return Buffer.from(part.body.data, 'base64url').toString('utf-8')
-        }
-      }
       for (const part of payload.parts) {
         if (part.mimeType === 'text/html' && part.body?.data) {
           return htmlToText(Buffer.from(part.body.data, 'base64url').toString('utf-8'))
+        }
+      }
+      for (const part of payload.parts) {
+        if (part.mimeType === 'text/plain' && part.body?.data) {
+          return Buffer.from(part.body.data, 'base64url').toString('utf-8')
         }
       }
     }
@@ -130,6 +131,8 @@ function htmlToText(html: string): string {
   return html
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    // Replace links with just their visible text (drop href URLs)
+    .replace(/<a\s[^>]*>([\s\S]*?)<\/a>/gi, '$1')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n\n')
     .replace(/<\/div>/gi, '\n')
@@ -143,6 +146,8 @@ function htmlToText(html: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/\r\n/g, '\n')
+    // Remove any leftover bare URLs (tracking pixels etc)
+    .replace(/https?:\/\/[^\s]{60,}/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }

@@ -16,6 +16,9 @@
   --r-sm: 14px;
   --r-full: 999px;
   --nav-h: 82px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --bottom-nav-space: calc(var(--nav-h) + var(--safe-bottom));
   --font: 'DM Sans', system-ui, -apple-system, sans-serif;
 }
 
@@ -31,6 +34,8 @@ body {
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   background: oklch(93% 0.012 55);
+  overscroll-behavior-y: none;
+  touch-action: manipulation;
 }
 
 /* ── Page background gradient ── */
@@ -104,4 +109,5 @@ input:focus {
   display: flex;
   flex-direction: column;
   background: var(--bg);
+  padding-top: var(--safe-top);
 }

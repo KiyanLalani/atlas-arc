@@ -15,7 +15,13 @@ interface WeatherStrip {
   mini: { label: string; temp: number }[]
 }
 
-interface CalEvent { title: string; startTime: string; tag: string }
+interface CalEvent { title: string; start: string }
+
+const fmtTime = (iso: string) => {
+  if (!iso || !iso.includes('T')) return ''
+  const d = new Date(iso)
+  return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
 
 export default function HomePage() {
   const { data: session } = useSession()
@@ -177,7 +183,7 @@ export default function HomePage() {
                   <div style={{ width: 3, height: 38, borderRadius: 4, background: eventColor(i), flexShrink: 0 }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{e.title}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-soft)' }}>{e.startTime}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-soft)' }}>{fmtTime(e.start)}</div>
                   </div>
                 </div>
               ))}

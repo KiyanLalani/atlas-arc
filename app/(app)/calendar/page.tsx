@@ -9,13 +9,19 @@ import Icon from '@/components/Icon'
 interface CalEvent {
   id: string
   title: string
-  startTime: string
-  endTime: string
   start: string
+  end: string
 }
 
 const ACCENT = 'var(--orange)'
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+// Format in the browser so it uses the user's local timezone, not the server's UTC
+const fmtTime = (iso: string) => {
+  if (!iso || !iso.includes('T')) return ''
+  const d = new Date(iso)
+  return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
 
 export default function CalendarPage() {
   const { data: session } = useSession()
@@ -161,7 +167,7 @@ export default function CalendarPage() {
                 <div style={{ width: 3, height: 44, borderRadius: 4, background: eventColor(i), flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{e.title}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-soft)', marginTop: 2 }}>{e.startTime}{e.endTime ? `–${e.endTime}` : ''}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-soft)', marginTop: 2 }}>{fmtTime(e.start)}{fmtTime(e.end) ? `–${fmtTime(e.end)}` : ''}</div>
                 </div>
               </LGCard>
             ))}

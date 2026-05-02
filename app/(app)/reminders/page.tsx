@@ -191,7 +191,7 @@ export default function RemindersPage() {
           onKeyDown={(e) => e.key === 'Enter' && add()}
           placeholder="Add a reminder…"
           disabled={saving}
-          style={{ flex: 1, padding: '11px 16px', borderRadius: 'var(--r-full)', background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.9)', fontSize: 14, color: 'var(--text)', outline: 'none', fontFamily: 'var(--font)', transition: 'box-shadow 0.2s' }}
+          style={{ flex: 1, padding: '11px 16px', borderRadius: 'var(--r-full)', background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.9)', fontSize: 16, color: 'var(--text)', outline: 'none', fontFamily: 'var(--font)', transition: 'box-shadow 0.2s' }}
         />
         <button onClick={add} disabled={saving || !newText.trim()} className="tappable" style={{ width: 44, height: 44, borderRadius: '50%', background: saving || !newText.trim() ? 'rgba(0,0,0,0.12)' : ACCENT, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s' }}>
           <Icon name="plus" size={19} color="white" sw={2.2} />

@@ -68,7 +68,7 @@ export default function HomePage() {
   const eventColor = (i: number) => i % 2 === 0 ? 'var(--sage)' : ACCENT
 
   return (
-    <div className="screen-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+    <div className="screen-in scroll-view" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto' }}>
       <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
         {/* Header */}

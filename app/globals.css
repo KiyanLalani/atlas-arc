@@ -12,10 +12,10 @@
   --text: oklch(20% 0.01 55);
   --text-mid: oklch(46% 0.015 55);
   --text-soft: oklch(65% 0.01 55);
-  --r: 22px;
-  --r-sm: 14px;
+  --r: 20px;
+  --r-sm: 12px;
   --r-full: 999px;
-  --nav-h: 82px;
+  --nav-h: 78px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --bottom-nav-space: calc(var(--nav-h) + var(--safe-bottom));
@@ -26,16 +26,30 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  /* No accidental text selection on tap */
+  -webkit-user-select: none;
+  user-select: none;
+  /* Kill the blue/grey tap flash entirely */
+  -webkit-tap-highlight-color: transparent;
+  /* Prevent double-tap zoom on interactive elements */
+  touch-action: manipulation;
 }
 
-html,
-body {
+/* Re-enable text selection only where it makes sense */
+input, textarea, [contenteditable], p, .selectable {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+html, body {
   height: 100%;
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   background: oklch(93% 0.012 55);
-  overscroll-behavior-y: none;
-  touch-action: manipulation;
+  /* Prevent page from bouncing/scrolling */
+  overscroll-behavior: none;
+  overflow: hidden;
 }
 
 /* ── Page background gradient ── */
@@ -51,63 +65,109 @@ body {
   pointer-events: none;
 }
 
-/* ── Liquid Glass (Apple-style) ── */
+/* ── Liquid Glass ── */
 .lg {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.48) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.88);
+  background: linear-gradient(160deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.48) 100%);
+  border: 1px solid rgba(255,255,255,0.88);
   backdrop-filter: blur(40px) saturate(180%) brightness(1.04);
   -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.04);
   box-shadow:
-    0 2px 24px rgba(0, 0, 0, 0.06),
-    0 1px 3px rgba(0, 0, 0, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    0 1px 0 rgba(255,255,255,0.9) inset,
+    0 2px 16px rgba(0,0,0,0.05),
+    0 1px 3px rgba(0,0,0,0.04);
 }
 
-/* ── Tap / hover feedback ── */
+/* ── Tappable — fast, physical, native-feeling press ── */
 .tappable {
-  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.18s ease;
-  cursor: pointer;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 0.2s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.2s ease;
 }
 .tappable:active {
-  transform: scale(0.96);
-  opacity: 0.85;
+  transform: scale(0.95);
+  opacity: 0.75;
+  /* Snap to pressed state immediately */
+  transition: transform 0.06s ease, opacity 0.06s ease;
 }
 
-/* ── Screen fade-in ── */
+/* ── Screen transition — cross-fade with subtle scale (iOS tab style) ── */
 .screen-in {
-  animation: fadeSlideIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: screenIn 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
 }
-@keyframes fadeSlideIn {
+@keyframes screenIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: scale(0.97);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: scale(1);
   }
 }
 
-/* ── Input focus ring ── */
-input:focus {
-  box-shadow: 0 0 0 2px rgba(190, 102, 55, 0.25) !important;
+/* ── Push-in — slide from right (for detail views) ── */
+.push-in {
+  animation: pushIn 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+@keyframes pushIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
 }
 
-/* ── Hide scrollbar ── */
-::-webkit-scrollbar {
-  display: none;
+/* ── Fade-in for list items ── */
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-* {
-  scrollbar-width: none;
+
+/* ── Pulse (for typing dots) ── */
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.85); }
+  50%       { opacity: 1;   transform: scale(1); }
 }
+
+/* ── Spin (for loader icon) ── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Native-style inputs — 16px prevents iOS auto-zoom ── */
+input, textarea {
+  font-family: var(--font);
+  font-size: 16px;
+  -webkit-user-select: text;
+  user-select: text;
+  border-radius: var(--r-full);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+input:focus, textarea:focus {
+  box-shadow: 0 0 0 2.5px rgba(190,102,55,0.22) !important;
+}
+/* Remove the browser's focus visible ring */
+:focus-visible {
+  outline: none;
+}
+
+/* ── Scrollable areas — momentum scrolling ── */
+.scroll-view {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ── Hide scrollbars ── */
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }
 
 /* ── App container ── */
 .app-container {
   position: relative;
   z-index: 1;
-  min-height: 100dvh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: var(--bg);
   padding-top: var(--safe-top);
+  overflow: hidden;
 }

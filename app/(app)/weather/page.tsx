@@ -51,7 +51,7 @@ export default function WeatherPage() {
   }
 
   return (
-    <div className="screen-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+    <div className="screen-in scroll-view" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto' }}>
       <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 13 }}>
 
         {/* Hero */}

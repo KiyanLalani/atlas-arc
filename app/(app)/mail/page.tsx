@@ -122,7 +122,7 @@ export default function MailPage() {
   // ── Email detail ──
   if (selected) {
     return (
-      <div className="screen-in" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <div className="push-in" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
         <div className="lg" style={{ padding: '12px 18px', borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: 'none', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <button onClick={() => { setSelected(null); setDraft('') }} className="tappable" style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: ACCENT, fontSize: 14, fontWeight: 500 }}>
             <Icon name="chevL" size={18} color={ACCENT} /> Back

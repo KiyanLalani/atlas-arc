@@ -15,11 +15,10 @@
   --r: 20px;
   --r-sm: 12px;
   --r-full: 999px;
-  --nav-h: 64px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  /* floating pill (64px) + 20px offset + 20px content buffer */
-  --bottom-nav-space: calc(104px + var(--safe-bottom));
+  /* FAB (56px) + 28px bottom + 24px buffer */
+  --bottom-nav-space: calc(108px + var(--safe-bottom));
   --font: 'DM Sans', system-ui, -apple-system, sans-serif;
 }
 
@@ -159,6 +158,7 @@ textarea:focus {
   flex-direction: column;
   padding-top: var(--safe-top);
   overflow: hidden;
+  background: transparent;
 }
 
 /* ── Scroll view ── */

@@ -17,23 +17,25 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="lg"
       style={{
         position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 'var(--bottom-nav-space)',
-        borderRadius: 0,
-        borderTop: '1px solid rgba(255,255,255,0.7)',
-        borderLeft: 'none',
-        borderRight: 'none',
-        borderBottom: 'none',
+        bottom: 'max(20px, calc(14px + env(safe-area-inset-bottom, 0px)))',
+        left: 16,
+        right: 16,
+        height: 64,
+        borderRadius: 36,
+        background: 'rgba(252, 248, 244, 0.88)',
+        backdropFilter: 'blur(48px) saturate(200%) brightness(1.06)',
+        WebkitBackdropFilter: 'blur(48px) saturate(200%) brightness(1.06)',
+        border: '1px solid rgba(255, 255, 255, 0.95)',
+        boxShadow:
+          '0 8px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.95)',
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: 'space-around',
         paddingTop: 8,
-        paddingBottom: 'var(--safe-bottom)',
+        paddingLeft: 6,
+        paddingRight: 6,
         zIndex: 100,
       }}
     >
@@ -51,7 +53,7 @@ export default function BottomNav() {
               gap: 4,
               textDecoration: 'none',
               padding: '4px 12px',
-              minWidth: 52,
+              flex: 1,
             }}
           >
             <div
@@ -80,7 +82,7 @@ export default function BottomNav() {
                 color: isActive ? 'var(--orange)' : 'var(--text-soft)',
                 fontWeight: isActive ? 600 : 400,
                 letterSpacing: '0.02em',
-                transition: 'color 0.18s ease, font-weight 0.18s ease',
+                transition: 'color 0.18s ease',
               }}
             >
               {n.label}

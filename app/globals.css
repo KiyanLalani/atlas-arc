@@ -15,10 +15,11 @@
   --r: 20px;
   --r-sm: 12px;
   --r-full: 999px;
-  --nav-h: 78px;
+  --nav-h: 64px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --bottom-nav-space: calc(var(--nav-h) + var(--safe-bottom));
+  /* floating pill (64px) + 20px offset + 20px content buffer */
+  --bottom-nav-space: calc(104px + var(--safe-bottom));
   --font: 'DM Sans', system-ui, -apple-system, sans-serif;
 }
 
@@ -26,30 +27,35 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  /* No accidental text selection on tap */
   -webkit-user-select: none;
   user-select: none;
-  /* Kill the blue/grey tap flash entirely */
   -webkit-tap-highlight-color: transparent;
-  /* Prevent double-tap zoom on interactive elements */
   touch-action: manipulation;
 }
 
-/* Re-enable text selection only where it makes sense */
-input, textarea, [contenteditable], p, .selectable {
+input,
+textarea,
+[contenteditable],
+p,
+.selectable {
   -webkit-user-select: text;
   user-select: text;
 }
 
-html, body {
+input,
+textarea {
+  font-size: 16px; /* prevents iOS auto-zoom */
+}
+
+html,
+body {
   height: 100%;
+  overflow: hidden;
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: oklch(93% 0.012 55);
-  /* Prevent page from bouncing/scrolling */
   overscroll-behavior: none;
-  overflow: hidden;
 }
 
 /* ── Page background gradient ── */
@@ -72,7 +78,7 @@ html, body {
   backdrop-filter: blur(40px) saturate(180%) brightness(1.04);
   -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.04);
   box-shadow:
-    0 1px 0 rgba(255,255,255,0.9) inset,
+    inset 0 1px 0 rgba(255,255,255,0.9),
     0 2px 16px rgba(0,0,0,0.05),
     0 1px 3px rgba(0,0,0,0.04);
 }
@@ -80,39 +86,30 @@ html, body {
 /* ── Tappable — fast, physical, native-feeling press ── */
 .tappable {
   cursor: default;
-  -webkit-user-select: none;
-  user-select: none;
   transition: transform 0.2s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.2s ease;
 }
 .tappable:active {
-  transform: scale(0.95);
+  transform: scale(0.94);
   opacity: 0.75;
-  /* Snap to pressed state immediately */
   transition: transform 0.06s ease, opacity 0.06s ease;
 }
 
-/* ── Screen transition — cross-fade with subtle scale (iOS tab style) ── */
+/* ── Screen transition ── */
 .screen-in {
   animation: screenIn 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
 }
 @keyframes screenIn {
-  from {
-    opacity: 0;
-    transform: scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
-/* ── Push-in — slide from right (for detail views) ── */
+/* ── Push-in for detail views ── */
 .push-in {
   animation: pushIn 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
 }
 @keyframes pushIn {
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0); }
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 /* ── Fade-in for list items ── */
@@ -132,29 +129,21 @@ html, body {
   to { transform: rotate(360deg); }
 }
 
-/* ── Native-style inputs — 16px prevents iOS auto-zoom ── */
-input, textarea {
+/* ── Inputs ── */
+input,
+textarea {
   font-family: var(--font);
-  font-size: 16px;
-  -webkit-user-select: text;
-  user-select: text;
   border-radius: var(--r-full);
   outline: none;
   appearance: none;
   -webkit-appearance: none;
 }
-input:focus, textarea:focus {
+input:focus,
+textarea:focus {
   box-shadow: 0 0 0 2.5px rgba(190,102,55,0.22) !important;
 }
-/* Remove the browser's focus visible ring */
 :focus-visible {
   outline: none;
-}
-
-/* ── Scrollable areas — momentum scrolling ── */
-.scroll-view {
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
 }
 
 /* ── Hide scrollbars ── */
@@ -170,4 +159,10 @@ input:focus, textarea:focus {
   flex-direction: column;
   padding-top: var(--safe-top);
   overflow: hidden;
+}
+
+/* ── Scroll view ── */
+.scroll-view {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
